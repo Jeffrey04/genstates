@@ -71,7 +71,7 @@ class Machine:
         result = [
             state
             for result, state in (
-                (trn.rule(context), trn.destination)
+                (trn.check_condition(context), trn.destination)
                 for trn in self.get_transitions(state).values()
             )
             if result is True
