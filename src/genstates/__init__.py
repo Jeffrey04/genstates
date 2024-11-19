@@ -26,9 +26,16 @@ class Transition:
     rule: Callable[[dict[Any, Any]], bool]
 
     def check_condition(self, context: dict[Any, Any]) -> bool:
+        """
+        Always returns a boolean, regardless rule is valid for given context.
+        If rule is invalid, returns a False
+        """
         assert_type(self.rule, Callable[[dict[Any, Any]], bool])
 
-        return self.rule(context)
+        try:
+            return self.rule(context)
+        except Exception:
+            return False
 
 
 class Machine:
@@ -77,7 +84,7 @@ class Machine:
             if result is True
         ]
 
-        assert len(result) == 0, "Ensure only 1 destination is possible"
+        assert len(result) == 1, "Ensure only 1 destination is possible"
 
         return result[0]
 
