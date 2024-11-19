@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "genstates"
+version = "0.1.0"
+description = ""
+authors = ["Jeffrey04 <mycyberpet@yahoo.com>"]
+readme = "README.md"
+packages = [{include = "genstates", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+genruler = "^0.1.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

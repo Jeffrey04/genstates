@@ -1,0 +1,70 @@
+machine:
+  initial_state: pending_payment
+
+states:
+  pending_payment:
+    name: pending payment
+    transitions:
+      order_authorization:
+        name: order is authorized
+        destination: authorized
+        rule: (condition.equal (basic.field is_authorized) (boolean.tautology))
+
+  authorized:
+    name: authorized
+    transitions:
+      order_partially_paid:
+        name: order is partially paid
+        destination: partially_paid
+        rule: (boolean.tautology)
+      order_fully_paid:
+        name: order is fully paid
+        destination: paid
+        rule: (boolean.tautology)
+
+  partially_paid:
+    name: partially paid
+    transitions:
+      order_fully_paid:
+        name: order is fully paid
+        destination: paid
+        rule: (boolean.tautology)
+      order_partially_paid:
+        name: order is partially paid
+        destination: partially_paid
+        rule: (boolean.tautology)
+      order_partially_refunded:
+        name: order is partially refunded
+        destination: partially_refunded
+        rule: (boolean.tautology)
+      order_fully_refunded:
+        name: order is fully refunded
+        destination: refunded
+        rule: (boolean.tautology)
+
+  paid:
+    name: fuly paid
+    transitions:
+      order_partially_refunded:
+        name: refunded partially
+        destination: partially_refunded
+        rule: (boolean.tautology)
+      order_fully_refunded:
+        name: refunded fully
+        destination: refunded
+        rule: (boolean.tautology)
+
+  partially_refunded:
+    name: refunded partially
+    transitions:
+      order_partially_refunded:
+        name: order is partially_refunded
+        destination: partially_refunded
+        rule: (boolean.tautology)
+      order_fully_refunded:
+        name: order is fully_refunded
+        destination: refunded
+        rule: (boolean.tautology)
+
+  refunded:
+    name: refunded fully
