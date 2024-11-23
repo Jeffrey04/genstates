@@ -11,6 +11,10 @@ python = ">=3.12,<3.14"
 genruler = "^0.1.0"
 
 
+[tool.poetry.group.dev.dependencies]
+ipdb = "^0.13.13"
+pytest = "^8.3.3"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
