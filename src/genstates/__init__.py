@@ -107,9 +107,18 @@ class Machine:
                 key=state_key, name=definition.get("name", state_key)
             )
 
+            # Check for duplicate destinations in transitions
+            destinations = []
             for trn_key, trn_definition in (
                 states[state_key].get("transitions", {}).items()
             ):
+                destination = trn_definition["destination"]
+                if destination in destinations:
+                    raise ValueError(
+                        f"State '{state_key}' has multiple transitions pointing to '{destination}'"
+                    )
+                destinations.append(destination)
+
                 result_transitions[(state_key, trn_key)] = {
                     "key": trn_key,
                     "name": trn_definition.get("name", trn_key),
