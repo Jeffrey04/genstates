@@ -122,7 +122,7 @@ class Machine:
                 result_transitions[(state_key, trn_key)] = {
                     "key": trn_key,
                     "name": trn_definition.get("name", trn_key),
-                    "origin": states[state_key],
+                    "origin": result_states[state_key],
                     "destination": trn_definition["destination"],
                     "rule": genruler.parse(
                         trn_definition.get("rule", "(boolean.tautology)")
@@ -131,7 +131,9 @@ class Machine:
 
         try:
             result_transitions = {
-                key: Transition(**dict(value, destination=states[value["destination"]]))
+                key: Transition(
+                    **dict(value, destination=result_states[value["destination"]])
+                )
                 for key, value in result_transitions.items()
             }
         except KeyError as e:
