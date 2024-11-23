@@ -58,11 +58,20 @@ class Machine:
             logger.error("Required initial state [%s] is not found", initial_state_key)
             raise e
 
-    def graph(self) -> None:
+    def graph(self) -> str:
         """
-        Return a graphviz dot graph
+        Return a graphviz dot graph notation as string
         """
-        pass
+        nodes = [
+            f'    "{state.key}" [label="{state.key}"]' for state in self.states.values()
+        ]
+
+        edges = [
+            f'    "{transition.origin.key}" -> "{transition.destination.key}" [label="{transition.key}"]'
+            for transition in self.transitions.values()
+        ]
+
+        return "digraph {\n" + "\n".join(nodes + edges) + "\n}"
 
     def get_transitions(self, state: State) -> dict[str, Transition]:
         return {
