@@ -1,6 +1,15 @@
 import pytest
 
 from genstates import Machine, State, Transition
+from genstates.exceptions import (
+    DuplicateDestinationError,
+    DuplicateTransitionError,
+    InvalidInitialStateError,
+    MissingDestinationStateError,
+    MissingInitialStateError,
+    MissingTransitionError,
+    NonCallableActionError,
+)
 
 
 @pytest.fixture
@@ -10,6 +19,7 @@ def simple_machine_schema():
         "states": {
             "state1": {
                 "name": "State One",
+                "action": None,
                 "transitions": {
                     "to_state2": {
                         "name": "Go to State Two",
@@ -18,24 +28,36 @@ def simple_machine_schema():
                     }
                 },
             },
-            "state2": {"name": "State Two"},
+            "state2": {
+                "name": "State Two",
+                "action": None,
+            },
         },
     }
 
 
 class TestState:
     def test_creation(self):
-        state = State(key="test", name="Test State")
+        state = State(key="test", name="Test State", action=None)
         assert state.key == "test"
         assert state.name == "Test State"
+        assert state.action is None
+
+    def test_action(self):
+        def test_action(x, y):
+            return x + y
+
+        state = State(key="test", name="Test State", action=test_action)
+        assert state.action is test_action
+        assert state.do_action(1, 2) == 3
 
 
 class TestTransition:
     @pytest.fixture
     def states(self):
         return {
-            "origin": State(key="start", name="Start State"),
-            "destination": State(key="end", name="End State"),
+            "origin": State(key="start", name="Start State", action=None),
+            "destination": State(key="end", name="End State", action=None),
         }
 
     def test_creation(self, states):
@@ -96,27 +118,94 @@ class TestMachine:
         assert next_state.key == "state2"
         assert next_state is machine.states["state2"]
 
-    def test_missing_initial_state(self):
-        schema = {"machine": {}, "states": {"state1": {"name": "State One"}}}
-
-        with pytest.raises(KeyError):
-            Machine(schema)
-
-    def test_invalid_initial_state(self):
-        schema = {
-            "machine": {"initial_state": "nonexistent"},
-            "states": {"state1": {"name": "State One"}},
-        }
-
-        with pytest.raises(KeyError):
-            Machine(schema)
-
-    def test_missing_destination_state(self):
+    def test_progress_no_destination(self):
         schema = {
             "machine": {"initial_state": "state1"},
             "states": {
                 "state1": {
                     "name": "State One",
+                    "action": None,
+                    "transitions": {
+                        "to_state2": {
+                            "name": "Go to State Two",
+                            "destination": "state2",
+                            "rule": "(boolean.contradiction)",
+                        }
+                    },
+                },
+                "state2": {"name": "State Two", "action": None},
+            },
+        }
+        machine = Machine(schema)
+        with pytest.raises(
+            MissingTransitionError,
+            match="Missing required transition from state1 to \\*",
+        ):
+            machine.progress(machine.initial, {})
+
+    def test_multiple_valid_transitions(self):
+        """
+        Test that having multiple valid transitions raises a DuplicateTransitionError.
+        """
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": None,
+                    "transitions": {
+                        "to_state2": {
+                            "name": "Go to State Two",
+                            "destination": "state2",
+                            "rule": "(boolean.tautology)",
+                        },
+                        "to_state3": {
+                            "name": "Go to State Three",
+                            "destination": "state3",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+                "state2": {"name": "State Two", "action": None},
+                "state3": {"name": "State Three", "action": None},
+            },
+        }
+
+        machine = Machine(schema)
+        with pytest.raises(
+            DuplicateTransitionError,
+            match="Transition from state1 to state2 already defined",
+        ):
+            machine.progress(machine.initial, {})
+
+    def test_missing_initial_state(self):
+        schema = {"machine": {}, "states": {"state1": {"name": "State One"}}}
+
+        with pytest.raises(MissingInitialStateError):
+            Machine(schema)
+
+    def test_invalid_initial_state(self):
+        """
+        Test that an invalid initial state raises an InvalidInitialStateError.
+        """
+        schema = {
+            "machine": {"initial_state": "nonexistent"},
+            "states": {"state1": {"name": "State One"}},
+        }
+
+        with pytest.raises(InvalidInitialStateError):
+            Machine(schema)
+
+    def test_missing_destination_state(self):
+        """
+        Test that a missing destination state raises a MissingDestinationStateError.
+        """
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": None,
                     "transitions": {
                         "to_state2": {
                             "name": "Go to Nonexistent State",
@@ -128,7 +217,7 @@ class TestMachine:
             },
         }
 
-        with pytest.raises(KeyError):
+        with pytest.raises(MissingDestinationStateError):
             Machine(schema)
 
     def test_multiple_transitions(self):
@@ -137,6 +226,7 @@ class TestMachine:
             "states": {
                 "state1": {
                     "name": "State One",
+                    "action": None,
                     "transitions": {
                         "to_state2": {
                             "name": "Go to State Two",
@@ -150,8 +240,8 @@ class TestMachine:
                         },
                     },
                 },
-                "state2": {"name": "State Two"},
-                "state3": {"name": "State Three"},
+                "state2": {"name": "State Two", "action": None},
+                "state3": {"name": "State Three", "action": None},
             },
         }
 
@@ -182,6 +272,7 @@ class TestMachine:
             "states": {
                 "state1": {
                     "name": "State One",
+                    "action": None,
                     "transitions": {
                         "to_state2_a": {
                             "name": "First transition to State Two",
@@ -195,10 +286,189 @@ class TestMachine:
                         },
                     },
                 },
-                "state2": {"name": "State Two"},
+                "state2": {"name": "State Two", "action": None},
             },
         }
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(DuplicateDestinationError) as exc_info:
             Machine(schema)
+        assert exc_info.value.state == "state1"
+        assert exc_info.value.destination == "state2"
         assert "State 'state1' has multiple transitions pointing to 'state2'" in str(exc_info.value)
+
+    def test_state_action_from_module(self):
+        class TestModule:
+            def action1(self, x, y):
+                return x + y
+
+            not_callable = 42
+
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": "action1",
+                },
+            },
+        }
+
+        module = TestModule()
+        machine = Machine(schema, module)
+        assert machine.states["state1"].do_action(1, 2) == 3
+
+    def test_non_callable_action(self):
+        class TestModule:
+            not_callable = 42
+
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": "not_callable",
+                },
+            },
+        }
+
+        module = TestModule()
+        with pytest.raises(
+            NonCallableActionError, match="Action for state 'state1' is not callable"
+        ):
+            Machine(schema, module)
+
+    def test_operator_add_action(self):
+        """Test using operator.add as a state action."""
+        import operator
+
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": "add",
+                },
+            },
+        }
+
+        machine = Machine(schema, operator)
+        state = machine.states["state1"]
+
+        # Test with integers
+        assert state.do_action(1, 2) == 3
+
+        # Test with strings
+        assert state.do_action("hello ", "world") == "hello world"
+
+        # Test with lists
+        assert state.do_action([1, 2], [3, 4]) == [1, 2, 3, 4]
+
+    def test_map_action(self):
+        """Test mapping items through state machine with actions."""
+
+        class TestModule:
+            def double(self, x):
+                """Double the input value."""
+                return x * 2
+
+            def triple(self, x):
+                """Triple the input value."""
+                return x * 3
+
+        schema = {
+            "machine": {"initial_state": "start"},
+            "states": {
+                "start": {
+                    "name": "Start State",
+                    "transitions": {
+                        "to_double": {
+                            "name": "Switch to Double",
+                            "destination": "double",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+                "double": {
+                    "name": "Double State",
+                    "action": "double",
+                    "transitions": {
+                        "to_triple": {
+                            "name": "Switch to Triple",
+                            "destination": "triple",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+                "triple": {
+                    "name": "Triple State",
+                    "action": "triple",
+                    "transitions": {
+                        "to_triple": {
+                            "name": "Switch to Triple",
+                            "destination": "triple",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+            },
+        }
+
+        machine = Machine(schema, TestModule())
+
+        contexts = [4, 8, 12]
+        results = list(machine.map_action(machine.initial, contexts))
+        assert results == [8, 24, 36]
+
+    def test_reduce_action(self):
+        """Test reducing items through state machine with actions."""
+        import operator
+
+        schema = {
+            "machine": {"initial_state": "start"},
+            "states": {
+                "start": {
+                    "name": "Start State",
+                    "transitions": {
+                        "to_multiply": {
+                            "name": "Switch to Sum",
+                            "destination": "sum",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+                "sum": {
+                    "name": "Start State",
+                    "action": "add",
+                    "transitions": {
+                        "to_multiply": {
+                            "name": "Switch to Multiply",
+                            "destination": "multiply",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+                "multiply": {
+                    "name": "Multiply State",
+                    "action": "mul",
+                    "transitions": {
+                        "to_multiply": {
+                            "name": "Switch to Multiply",
+                            "destination": "multiply",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+            },
+        }
+
+        machine = Machine(schema, operator)
+
+        # Test with initial value
+        numbers = [1, 2, 3, 4, 5]
+        result = machine.reduce_action(machine.initial, numbers, initial_value=0)
+        assert result == 120  # ((0+1) * 2 * 3 * 4 * 5 = 120)
+
+        # Test without initial value
+        numbers = [2, 3, 4, 5]
+        result = machine.reduce_action(machine.initial, numbers)
+        assert result == 100  # ((2+3) * 4 * 5 = 100)
