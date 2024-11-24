@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "genstates", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.14"
+python = "^3.12"
 genruler = "^0.1.0"
 
 

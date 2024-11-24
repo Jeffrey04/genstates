@@ -67,30 +67,17 @@ files = [
 
 [[package]]
 name = "genruler"
-version = "0.1.0"
+version = "0.1.3"
 description = ""
 optional = false
-python-versions = "<3.14,>=3.12"
+python-versions = "<4.0,>=3.12"
 files = [
-    {file = "genruler-0.1.0-py3-none-any.whl", hash = "sha256:8383b2e768726a26cd9b20fbeb9978514c1bfa5cec7fedc5f29e230f5d629474"},
-    {file = "genruler-0.1.0.tar.gz", hash = "sha256:aa711923e5762784216e9d0577266f026bd30fdde600ded6e5ee618370e6b317"},
+    {file = "genruler-0.1.3-py3-none-any.whl", hash = "sha256:4f513363ab396b2ba3ba2bb1d1539459d622816d5df6e8e6b5c26478ab41638f"},
+    {file = "genruler-0.1.3.tar.gz", hash = "sha256:7b284db0fa9eeb25d2a3b5b128c80c1f67809bedebff9ee955656157ce7732cd"},
 ]
 
 [package.dependencies]
-hy = ">=1.0.0,<2.0.0"
-
-[[package]]
-name = "hy"
-version = "1.0.0"
-description = "A Lisp dialect embedded in Python"
-optional = false
-python-versions = "<3.14,>=3.8"
-files = [
-    {file = "hy-1.0.0.tar.gz", hash = "sha256:3a00013e075ff5ce8f5d475ca2be47e4c871f09184ba3533787cb544d32d1f9e"},
-]
-
-[package.dependencies]
-funcparserlib = ">=1.0,<2.0"
+funcparserlib = ">=1.0.1,<2.0.0"
 
 [[package]]
 name = "iniconfig"
@@ -373,5 +360,5 @@ files = [
 
 [metadata]
 lock-version = "2.0"
-python-versions = ">=3.12,<3.14"
-content-hash = "b64ed14839fdd4a022034a4f4feac2aca7888691ad0da93176c858898e81053f"
+python-versions = "^3.12"
+content-hash = "b9c018258c6ea96bc8dc136bab69871be79d67d761fd6bc828b058d5d71e7c24"
