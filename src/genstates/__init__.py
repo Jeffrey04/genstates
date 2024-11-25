@@ -133,6 +133,25 @@ class Machine:
         except KeyError as e:
             raise InvalidInitialStateError(initial_state_key) from e
 
+    def foreach_action(self, current_state: State, iterable: Iterable[Any]) -> None:
+        """Process each item in an iterable through the state machine's actions.
+
+        This method iterates through each item in the provided iterable and:
+        1. Progresses the state machine to the next state based on the current item
+        2. Executes the action associated with the resulting state on that item
+
+        Args:
+            current_state: The starting state for processing the iterable
+            iterable: A sequence of items to process through the state machine's actions
+
+        Each item in the iterable is first used to determine state transitions via progress(),
+        then passed to the resulting state's action function.
+        """
+        for item in iterable:
+            current_state = self.progress(current_state, item)
+
+            current_state.do_action(item)
+
     def graph(self) -> str:
         """
         Generate a Graphviz DOT representation of the state machine.

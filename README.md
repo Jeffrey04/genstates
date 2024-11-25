@@ -20,6 +20,7 @@ A flexible state machine library for Python with support for state actions and d
    - [Sequence Processing](#sequence-processing)
      - [Map Action](#map-action)
      - [Reduce Action](#reduce-action)
+     - [Foreach Action](#foreach-action)
    - [Visualization](#visualization)
 6. [Advanced Usage](#advanced-usage)
    - [Custom Action Modules](#custom-action-modules)
@@ -298,6 +299,51 @@ result = machine.reduce_action(machine.initial, numbers, initial_value=0)
 # (6,4): multiply -> multiply -> mul(6,4) = 24
 # (24,5): multiply -> multiply -> mul(24,5) = 120
 ```
+
+#### Foreach Action
+
+Process a sequence of items through the state machine, executing each state's action on the items as they flow through:
+
+```python
+import operator
+from genstates import Machine
+
+schema = {
+    "machine": {"initial_state": "start"},
+    "states": {
+        "start": {
+            "name": "Start State",
+            "action": "add",  # operator.add
+            "transitions": {
+                "to_multiply": {
+                    "destination": "multiply",
+                    "rule": "(boolean.tautology)",
+                }
+            }
+        },
+        "multiply": {
+            "name": "Multiply State",
+            "action": "mul",  # operator.mul
+            "transitions": {
+                "to_multiply": {
+                    "destination": "multiply",
+                    "rule": "(boolean.tautology)",
+                }
+            }
+        }
+    }
+}
+
+machine = Machine(schema, operator)
+
+# Process numbers through the state machine
+numbers = [4, 8, 12]
+machine.foreach_action(machine.initial, numbers)
+# Each number is first processed by its current state's action,
+# then used to determine the next state transition
+```
+
+Unlike `map_action` which returns results, `foreach_action` is used when you want to execute state actions for their side effects (e.g., saving to a database, sending notifications) rather than collecting return values.
 
 ### Visualization
 

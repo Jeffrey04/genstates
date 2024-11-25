@@ -472,3 +472,55 @@ class TestMachine:
         numbers = [2, 3, 4, 5]
         result = machine.reduce_action(machine.initial, numbers)
         assert result == 100  # ((2+3) * 4 * 5 = 100)
+
+    def test_foreach_action(self):
+        """Test processing items through state machine with foreach_action."""
+
+        class TestModule:
+            def __init__(self):
+                self.processed = []
+
+            def collect(self, x):
+                """Store the input value in processed list."""
+                self.processed.append(x)
+
+            def double(self, x):
+                """Double the input value and store it."""
+                self.processed.append(x * 2)
+
+        schema = {
+            "machine": {"initial_state": "start"},
+            "states": {
+                "start": {
+                    "name": "Start State",
+                    "action": "collect",
+                    "transitions": {
+                        "to_double": {
+                            "name": "Switch to Double",
+                            "destination": "double",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+                "double": {
+                    "name": "Double State",
+                    "action": "double",
+                    "transitions": {
+                        "to_double": {
+                            "name": "Switch to Double",
+                            "destination": "double",
+                            "rule": "(boolean.tautology)",
+                        },
+                    },
+                },
+            },
+        }
+
+        module = TestModule()
+        machine = Machine(schema, module)
+
+        numbers = [4, 8, 12]
+        machine.foreach_action(machine.initial, numbers)
+
+        # All numbers are doubled since we transition to double state immediately
+        assert module.processed == [8, 16, 24]
