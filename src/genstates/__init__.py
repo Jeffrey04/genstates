@@ -4,7 +4,7 @@ from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
 from functools import reduce
 from types import ModuleType
-from typing import Any, Optional, TypeVar, assert_type
+from typing import Any, assert_type
 
 import genruler
 
@@ -16,6 +16,7 @@ from genstates.exceptions import (
     MissingInitialStateError,
     MissingTransitionError,
     NonCallableActionError,
+    ValidationFailedError,
 )
 
 
@@ -32,6 +33,7 @@ class State[T]:
         name: Human-readable name for the state
         action: Optional callable to execute when the state is active
     """
+
     key: str
     name: str
     action: Callable[..., T] | None
@@ -50,6 +52,18 @@ class State[T]:
 
 
 @dataclass(frozen=True)
+class Validation:
+    rule: Callable[[dict[Any, Any]], bool]
+    message: str
+
+    def check_condition(self, context: dict[Any, Any]) -> bool:
+        if self.rule(context):
+            return True
+        else:
+            raise ValidationFailedError(self.message)
+
+
+@dataclass(frozen=True)
 class Transition:
     """
     A transition between states in a state machine.
@@ -64,11 +78,13 @@ class Transition:
         destination: Target state where this transition leads
         rule: Function that takes a context dict and returns True if the transition should be taken
     """
+
     key: str
     name: str
     origin: State
     destination: State
     rule: Callable[[dict[Any, Any]], bool]
+    validation: Validation | None
 
     def check_condition(self, context: dict[Any, Any]) -> bool:
         """
@@ -100,6 +116,7 @@ class Machine:
         states: Map of state keys to State objects
         transitions: Map of (state_key, transition_key) pairs to Transition objects
     """
+
     initial: State
     states: dict[str, State]
     transitions: dict[tuple[str, str], Transition]
@@ -289,7 +306,8 @@ class Machine:
         Create states and transitions from a configuration dict.
 
         Args:
-            states: Dict with state and transition definitions
+            states: Dict with state and transition definitions. Transitions may include
+                   optional validation rules with custom error messages.
             module: Optional module containing action functions
 
         Returns:
@@ -301,7 +319,8 @@ class Machine:
             DuplicateDestinationError: When a state has multiple transitions to the same destination
             MissingDestinationStateError: When a transition references a non-existent destination state
             NonCallableActionError: When a state's action is not callable
-            genruler.exceptions.ParseError: When a transition rule has invalid syntax
+            genruler.exceptions.ParseError: When a transition rule or validation rule has invalid syntax
+            ValueError: When a transition definition is invalid
         """
         result_states, result_transitions = {}, {}
 
@@ -328,15 +347,28 @@ class Machine:
                     raise DuplicateDestinationError(state_key, destination)
                 destinations.append(destination)
 
-                result_transitions[(state_key, trn_key)] = {
-                    "key": trn_key,
-                    "name": trn_definition.get("name", trn_key),
-                    "origin": result_states[state_key],
-                    "destination": trn_definition["destination"],
-                    "rule": genruler.parse(
-                        trn_definition.get("rule", "(boolean.tautology)")
-                    ),
-                }
+                try:
+                    validation = None
+                    if valid_definition := trn_definition.get("validation"):
+                        validation = Validation(
+                            rule=genruler.parse(valid_definition["rule"]),
+                            message=valid_definition["message"],
+                        )
+
+                    result_transitions[(state_key, trn_key)] = {
+                        "key": trn_key,
+                        "name": trn_definition.get("name", trn_key),
+                        "origin": result_states[state_key],
+                        "destination": trn_definition["destination"],
+                        "rule": genruler.parse(
+                            trn_definition.get("rule", "(boolean.tautology)")
+                        ),
+                        "validation": validation,
+                    }
+                except Exception as e:
+                    raise ValueError(
+                        f"Invalid transition definition for '{trn_key}' in state '{state_key}': {e}"
+                    ) from e
 
         try:
             result_transitions = {

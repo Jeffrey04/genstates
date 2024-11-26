@@ -65,3 +65,11 @@ class DuplicateDestinationError(GenStatesException):
         super().__init__(
             f"State '{state}' has multiple transitions pointing to '{destination}'"
         )
+
+
+class ValidationFailedError(GenStatesException):
+    """Raised when a validation condition fails."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)

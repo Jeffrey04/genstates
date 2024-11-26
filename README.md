@@ -54,6 +54,10 @@ schema = {
                 "to_double": {
                     "destination": "double",
                     "rule": "(boolean.tautology)",
+                    "validation": {
+                        "rule": "(condition.gt 0)",
+                        "message": "Number must be positive"
+                    }
                 }
             }
         },
@@ -64,6 +68,10 @@ schema = {
                 "to_triple": {
                     "destination": "triple",
                     "rule": "(boolean.tautology)",
+                    "validation": {
+                        "rule": "(condition.gt 0)",
+                        "message": "Number must be positive"
+                    }
                 }
             }
         },
@@ -74,6 +82,10 @@ schema = {
                 "to_triple": {
                     "destination": "triple",
                     "rule": "(boolean.tautology)",
+                    "validation": {
+                        "rule": "(condition.gt 0)",
+                        "message": "Number must be positive"
+                    }
                 }
             }
         }
@@ -103,6 +115,9 @@ states:
       to_double:
         destination: double
         rule: "(boolean.tautology)"
+        validation:
+          rule: "(condition.gt 0)"
+          message: "Number must be positive"
   double:
     name: Double State
     action: mul
@@ -110,6 +125,9 @@ states:
       to_triple:
         destination: triple
         rule: "(boolean.tautology)"
+        validation:
+          rule: "(condition.gt 0)"
+          message: "Number must be positive"
   triple:
     name: Triple State
     action: mul
@@ -117,6 +135,9 @@ states:
       to_triple:
         destination: triple
         rule: "(boolean.tautology)"
+        validation:
+          rule: "(condition.gt 0)"
+          message: "Number must be positive"
 ```
 
 Then load and use it in Python:
@@ -190,6 +211,10 @@ schema = {
                     "name": "Human Readable Name",  # Display name
                     "destination": "destination_state_key",  # Target state
                     "rule": "(boolean.tautology)",  # Transition rule
+                    "validation": {  # Optional: Validation for the transition
+                        "rule": "(condition.gt 0)",  # Validation rule
+                        "message": "Error message if validation fails"  # Custom error message
+                    }
                 },
             },
         },
