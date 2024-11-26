@@ -39,7 +39,7 @@ class State[T]:
     name: str
     action: Callable[..., T] | None
 
-    def do_action(self, *arguments: Any) -> T:
+    def do_action(self, *arguments: Any, context: Any | None = None) -> T:
         """
         Execute the action associated with this state.
 
@@ -57,7 +57,11 @@ class State[T]:
 
         assert_type(self.action, Callable[..., T])
 
-        return self.action(self, *arguments)
+        return (
+            self.action(self, context, *arguments)
+            if context
+            else self.action(self, *arguments)
+        )
 
 
 @dataclass(frozen=True)

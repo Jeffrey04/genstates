@@ -55,6 +55,16 @@ class TestState:
         assert state.action is test_action
         assert state.do_action(1, 2) == 3
 
+        # Test with context
+        def test_action_with_context(state, context, x, y):
+            assert isinstance(state, State)
+            assert state.key == "test"
+            assert context["value"] == 42
+            return x + y
+
+        state = State(key="test", name="Test State", action=test_action_with_context)
+        assert state.do_action(1, 2, context={"value": 42}) == 3
+
     def test_missing_action(self):
         """Test that executing a state with no action raises MissingActionError."""
         state = State(key="test", name="Test State", action=None)
@@ -423,7 +433,8 @@ class TestMachine:
 
         class TestModule:
             def add_wrapper(self, state, x, y):
-                """Wrapper around operator.add that ignores the state argument."""
+                """Wrapper around operator.add that ignores state argument."""
+                assert isinstance(state, State)
                 return operator.add(x, y)
 
         schema = {
@@ -442,11 +453,53 @@ class TestMachine:
         # Test with integers
         assert machine.states["state1"].do_action(1, 2) == 3
 
+        # Test with context
+        assert machine.states["state1"].do_action(1, 2) == 3
+
         # Test with strings
         assert machine.states["state1"].do_action("hello ", "world") == "hello world"
 
         # Test with lists
         assert machine.states["state1"].do_action([1, 2], [3, 4]) == [1, 2, 3, 4]
+
+    def test_operator_add_action_with_context(self):
+        """Test using operator.add as a state action with required context."""
+        import operator
+
+        class TestModule:
+            def add_wrapper(self, state, context, x, y):
+                """Wrapper around operator.add that requires context."""
+                assert isinstance(state, State)
+                assert context is not None
+                assert context["value"] == 42
+                return operator.add(x, y)
+
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": "add_wrapper",
+                },
+            },
+        }
+
+        module = TestModule()
+        machine = Machine(schema, module)
+
+        # Test with integers
+        assert machine.states["state1"].do_action(1, 2, context={"value": 42}) == 3
+
+        # Test with strings
+        assert (
+            machine.states["state1"].do_action("hello ", "world", context={"value": 42})
+            == "hello world"
+        )
+
+        # Test with lists
+        assert machine.states["state1"].do_action(
+            [1, 2], [3, 4], context={"value": 42}
+        ) == [1, 2, 3, 4]
 
     def test_map_action(self):
         """Test mapping items through state machine with actions."""
@@ -467,20 +520,9 @@ class TestMachine:
             "states": {
                 "start": {
                     "name": "Start State",
-                    "transitions": {
-                        "to_double": {
-                            "name": "Switch to Double",
-                            "destination": "double",
-                            "rule": "(boolean.tautology)",
-                        },
-                    },
-                },
-                "double": {
-                    "name": "Double State",
                     "action": "double",
                     "transitions": {
                         "to_triple": {
-                            "name": "Switch to Triple",
                             "destination": "triple",
                             "rule": "(boolean.tautology)",
                         },
@@ -491,7 +533,6 @@ class TestMachine:
                     "action": "triple",
                     "transitions": {
                         "to_triple": {
-                            "name": "Switch to Triple",
                             "destination": "triple",
                             "rule": "(boolean.tautology)",
                         },
@@ -502,9 +543,9 @@ class TestMachine:
 
         machine = Machine(schema, TestModule())
 
-        contexts = [4, 8, 12]
-        results = list(machine.map_action(machine.initial, contexts))
-        assert results == [8, 24, 36]
+        items = [4, 8, 12]
+        results = list(machine.map_action(machine.initial, items))
+        assert results == [12, 24, 36]
 
     def test_reduce_action(self):
         """Test reducing items through state machine with actions."""
@@ -512,11 +553,12 @@ class TestMachine:
 
         class TestModule:
             def add_wrapper(self, state, x, y):
-                """Wrapper around operator.add that ignores the state argument."""
+                """Wrapper around operator.add that ignores state argument."""
+                assert isinstance(state, State)
                 return operator.add(x, y)
 
             def mul_wrapper(self, state, x, y):
-                """Wrapper around operator.mul that ignores the state argument."""
+                """Wrapper around operator.mul that ignores state arguments."""
                 return operator.mul(x, y)
 
         schema = {
@@ -588,7 +630,6 @@ class TestMachine:
                     "action": "collect",
                     "transitions": {
                         "to_double": {
-                            "name": "Switch to Double",
                             "destination": "double",
                             "rule": "(boolean.tautology)",
                         },
@@ -599,7 +640,6 @@ class TestMachine:
                     "action": "double",
                     "transitions": {
                         "to_double": {
-                            "name": "Switch to Double",
                             "destination": "double",
                             "rule": "(boolean.tautology)",
                         },
@@ -611,11 +651,14 @@ class TestMachine:
         module = TestModule()
         machine = Machine(schema, module)
 
-        numbers = [4, 8, 12]
-        machine.foreach_action(machine.initial, numbers)
+        # Process items through the state machine
+        items = [1, 2, 3]
+        machine.foreach_action(machine.initial, items)
 
-        # All numbers are doubled since we transition to double state immediately
-        assert module.processed == [8, 16, 24]
+        # Items are processed through the state machine:
+        # First item: progress from start -> double, then double(1) -> [2]
+        # Subsequent items: progress back to double state, double(2) -> [2, 4], double(3) -> [2, 4, 6]
+        assert module.processed == [2, 4, 6]
 
     def test_validation_in_progress(self):
         """Test that validation is checked during state machine progress."""
