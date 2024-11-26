@@ -264,37 +264,56 @@ State actions are functions that process items in a state.
 2. Functions are looked up in the provided module:
    ```python
    class NumberProcessor:
-       def double(self, state, x):
+       def double(self, state, x, context=None):
            # state is the current State object
+           # context is optional and passed from do_action
            return x * 2
-   
+
    machine = Machine(schema, NumberProcessor())
    ```
 
 #### Action Types
 
+Actions can be defined in several ways. When `do_action` is called with a context parameter, it is passed as the second argument to the action:
+
 1. Instance methods:
    ```python
    class Processor:
+       # Without context
        def double(self, state, x):
            # state is the current State object
            return x * 2
+
+       # With context
+       def process(self, state, context, x):
+           # state is the current State object
+           # context is passed from do_action
+           return x * context['multiplier']
    ```
 
 2. Module functions (via wrapper class):
    ```python
    class OperatorWrapper:
-       def add_wrapper(self, state, x, y):
+       # Without context
+       def add(self, state, x, y):
            # state is ignored
            return x + y
-   
-   machine = Machine(schema, OperatorWrapper())
+
+       # With context
+       def add_with_bonus(self, state, context, x, y):
+           # state is ignored
+           # context is passed from do_action
+           return x + y + context['bonus']
    ```
 
 3. Lambda functions:
    ```python
    class Processor:
-       double = lambda self, state, x: x * 2  # state is current State object
+       # Without context
+       double = lambda self, state, x: x * 2
+
+       # With context
+       multiply = lambda self, state, context, x: x * context['factor']
    ```
 
 ### Sequence Processing
@@ -407,7 +426,7 @@ Create custom modules for complex processing:
 class DataProcessor:
     def __init__(self, config):
         self.config = config
-    
+
     def process(self, data):
         # Complex processing logic
         return processed_data
