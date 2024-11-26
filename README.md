@@ -520,6 +520,8 @@ graph = graphviz.Source(dot_string)
 graph.render("state_machine", format="png")
 ```
 
+![Graphviz output](https://github.com/Jeffrey04/genstates/blob/main/states.png?raw=true)
+
 ## Advanced Usage
 
 ### Custom Action Modules
