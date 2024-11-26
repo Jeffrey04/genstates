@@ -292,31 +292,36 @@ Actions can be defined in several ways. When `do_action` is called with a contex
            return x * context['multiplier']
    ```
 
-2. Module functions (via wrapper class):
-   ```python
-   class OperatorWrapper:
-       # Without context
-       def add(self, state, x, y):
-           # state is ignored
-           # x and y are items to process
-           return x + y
+   Then set up the state machine as follows:
 
-       # With context
-       def add_with_bonus(self, state, context, x, y):
-           # state is ignored
-           # context is passed from do_action
-           # x and y are items to process
-           return x + y + context['bonus']
+   ```python
+   machine = Machine(schema, Processor())
    ```
 
-3. Lambda functions:
+2. Module functions (via wrapper class):
    ```python
-   class Processor:
-       # Without context
-       double = lambda self, state, x: x * 2
+   # state_operations.py
 
-       # With context
-       multiply = lambda self, state, context, x: x * context['factor']
+   # Without context
+   def add(state, x, y):
+       # state is ignored
+       # x and y are items to process
+       return x + y
+
+   # With context
+   def add_with_bonus(state, context, x, y):
+       # state is ignored
+       # context is passed from do_action
+       # x and y are items to process
+       return x + y + context['bonus']
+   ```
+
+   Then set up the state machine as follows:
+
+   ```python
+   import state_operations
+
+   machine = Machine(schema, state_operations)
    ```
 
 #### Calling Actions
