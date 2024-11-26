@@ -265,8 +265,7 @@ State actions are functions that process items in a state.
    ```python
    class NumberProcessor:
        def double(self, state, x, context=None):
-           # state is the current State object
-           # context is optional and passed from do_action
+           """Wrapper around multiplication that ignores state argument."""
            return x * 2
 
    machine = Machine(schema, NumberProcessor())
@@ -282,12 +281,14 @@ Actions can be defined in several ways. When `do_action` is called with a contex
        # Without context
        def double(self, state, x):
            # state is the current State object
+           # x is the item to process
            return x * 2
 
        # With context
        def process(self, state, context, x):
            # state is the current State object
            # context is passed from do_action
+           # x is the item to process
            return x * context['multiplier']
    ```
 
@@ -297,12 +298,14 @@ Actions can be defined in several ways. When `do_action` is called with a contex
        # Without context
        def add(self, state, x, y):
            # state is ignored
+           # x and y are items to process
            return x + y
 
        # With context
        def add_with_bonus(self, state, context, x, y):
            # state is ignored
            # context is passed from do_action
+           # x and y are items to process
            return x + y + context['bonus']
    ```
 
@@ -315,6 +318,38 @@ Actions can be defined in several ways. When `do_action` is called with a contex
        # With context
        multiply = lambda self, state, context, x: x * context['factor']
    ```
+
+#### Calling Actions
+
+Using the `OperatorWrapper` defined above as an example, actions can be called using `do_action`. The state machine will resolve the action based on the current state and pass arguments appropriately:
+
+```python
+# Define a simple schema with two states
+schema = {
+    "machine": {"initial_state": "start"},
+    "states": {
+        "start": {
+            "actions": {"add": "add"},
+            ...
+        },
+        "bonus": {
+            "actions": {"add": "add_with_bonus"}
+        }
+    }
+}
+
+# Initialize machine with OperatorWrapper
+machine = Machine(schema, OperatorWrapper())
+
+# Get state and call action without context
+start_state = machine.states["start"]
+result = start_state.do_action(3, 4)  # calls add(state, 3, 4)
+
+# Get state and call action with context
+start_state = machine.states["bonus"]
+context = {'bonus': 10}
+result = bonus_state.do_action(3, 4, context=context)  # calls add_with_bonus(state, context, 3, 4)
+```
 
 ### Sequence Processing
 
@@ -399,8 +434,6 @@ machine = Machine(schema, Calculator())
 # Process numbers through the state machine
 numbers = [4, 8, 12]
 machine.foreach_action(machine.initial, numbers)
-# Each number is first processed by its current state's action,
-# then used to determine the next state transition
 ```
 
 Unlike `map_action` which returns results, `foreach_action` is used when you want to execute state actions for their side effects (e.g., saving to a database, sending notifications) rather than collecting return values.
