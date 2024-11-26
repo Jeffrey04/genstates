@@ -329,22 +329,25 @@ Actions can be defined in several ways. When `do_action` is called with a contex
 Using the `OperatorWrapper` defined above as an example, actions can be called using `do_action`. The state machine will resolve the action based on the current state and pass arguments appropriately:
 
 ```python
+import state_operations
+
 # Define a simple schema with two states
 schema = {
     "machine": {"initial_state": "start"},
     "states": {
         "start": {
-            "actions": {"add": "add"},
+            "action": "add",
             ...
         },
         "bonus": {
-            "actions": {"add": "add_with_bonus"}
+            "action": "add_with_bonus",
+            ...
         }
     }
 }
 
-# Initialize machine with OperatorWrapper
-machine = Machine(schema, OperatorWrapper())
+# Initialize machine
+machine = Machine(schema, state_operations)
 
 # Get state and call action without context
 start_state = machine.states["start"]
@@ -360,45 +363,7 @@ result = bonus_state.do_action(3, 4, context=context)  # calls add_with_bonus(st
 
 #### Map Action
 
-`map_action(current_state, iterable)` processes items through state transitions and actions.
-
-Key features:
-- State transitions occur before processing each item
-- Each item is processed by the current state's action
-- Results are yielded one at a time
-
-Example:
-```python
-numbers = [4, 8, 12]
-results = list(machine.map_action(machine.initial, numbers))
-# Processing flow:
-# 4: start -> double -> double(4) = 8
-# 8: double -> triple -> triple(8) = 24
-# 12: triple -> triple -> triple(12) = 36
-```
-
-#### Reduce Action
-
-`reduce_action(current_state, iterable, initial_value=None)` combines items using state actions.
-
-Key features:
-- State transitions occur before each reduction
-- Current state's action is used as reduction function
-- Optional initial value for first reduction
-
-Example:
-```python
-numbers = [2, 3, 4]
-result = machine.reduce_action(machine.initial, numbers, initial_value=1)
-# Processing flow:
-# (1,2): start -> sum -> add(1,2) = 3
-# (3,3): sum -> multiply -> mul(3,3) = 9
-# (9,4): multiply -> multiply -> mul(9,4) = 36
-```
-
-#### Foreach Action
-
-Process a sequence of items through the state machine, executing each state's action on the items as they flow through:
+Process a sequence of items through the state machine, returning a list of results:
 
 ```python
 from genstates import Machine
@@ -437,8 +402,108 @@ schema = {
 machine = Machine(schema, Calculator())
 
 # Process numbers through the state machine
-numbers = [4, 8, 12]
-machine.foreach_action(machine.initial, numbers)
+numbers = [(2,3), (4,5), (6,7)]
+result = machine.map_action(machine.initial, numbers)
+# Result: [6, 20, 42]
+```
+
+#### Reduce Action
+
+Process a sequence of items through the state machine, accumulating results:
+
+```python
+from genstates import Machine
+
+class Calculator:
+    def mul_wrapper(self, state, x, y):
+        """Wrapper around multiplication that ignores state argument."""
+        return x * y
+
+schema = {
+    "machine": {"initial_state": "start"},
+    "states": {
+        "start": {
+            "name": "Start State",
+            "action": "mul_wrapper",  # Calculator.mul_wrapper
+            "transitions": {
+                "to_multiply": {
+                    "destination": "multiply",
+                    "rule": "(boolean.tautology)",
+                }
+            }
+        },
+        "multiply": {
+            "name": "Multiply State",
+            "action": "mul_wrapper",
+            "transitions": {
+                "to_multiply": {
+                    "destination": "multiply",
+                    "rule": "(boolean.tautology)",
+                }
+            }
+        }
+    }
+}
+
+machine = Machine(schema, Calculator())
+
+# Process numbers through the state machine
+numbers = [2, 3, 4]
+result = machine.reduce_action(machine.initial, numbers)
+# Result: 24 (first mul: 2*3=6, then mul: 6*4=24)
+```
+
+#### Foreach Action
+
+Process a sequence of items through the state machine, executing each state's action on the items as they flow through:
+
+```python
+from genstates import Machine
+
+# Module to store processed results
+class Module:
+    def __init__(self):
+        self.processed = []
+
+    def collect(self, state, x):
+        self.processed.append(x)
+        return x
+
+    def double(self, state, x):
+        result = x * 2
+        self.processed.append(result)
+        return result
+
+# Create module instance to store results
+module = Module()
+
+schema = {
+    "machine": {"initial_state": "start"},
+    "states": {
+        "start": {
+            "action": "collect",  # collect items
+            "transitions": {
+                "next": {
+                    "destination": "double",
+                    "rule": "(boolean.tautology)",
+                }
+            }
+        },
+        "double": {
+            "action": "double",  # double items
+        }
+    }
+}
+
+machine = Machine(schema, module)
+
+# Process items through the state machine
+items = [1, 2, 3]
+machine.foreach_action(machine.initial, items)
+
+# First item: progress from start -> double, then double(1) -> [2]
+# Next items: progress back to double state, double(2) -> [2, 4], double(3) -> [2, 4, 6]
+print(module.processed)  # [2, 4, 6]
 ```
 
 Unlike `map_action` which returns results, `foreach_action` is used when you want to execute state actions for their side effects (e.g., saving to a database, sending notifications) rather than collecting return values.
