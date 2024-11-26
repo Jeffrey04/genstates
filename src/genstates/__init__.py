@@ -53,10 +53,37 @@ class State[T]:
 
 @dataclass(frozen=True)
 class Validation:
+    """
+    A validation rule that can be attached to state transitions.
+
+    Validations are used to enforce conditions that must be met before a transition
+    can be taken. Each validation has a rule function that evaluates a context
+    dictionary and a message that is included in the error if validation fails.
+
+    Attributes:
+        rule: Function that takes a context dict and returns True if validation passes
+        message: Error message to display if validation fails
+
+    Raises:
+        ValidationFailedError: When the validation rule returns False
+    """
+
     rule: Callable[[dict[Any, Any]], bool]
     message: str
 
     def check_condition(self, context: dict[Any, Any]) -> bool:
+        """
+        Check if the validation rule passes for the given context.
+
+        Args:
+            context: Dictionary of values to validate against
+
+        Returns:
+            True if validation passes
+
+        Raises:
+            ValidationFailedError: When the validation rule returns False
+        """
         if self.rule(context):
             return True
         else:
@@ -88,20 +115,41 @@ class Transition:
 
     def check_condition(self, context: dict[Any, Any]) -> bool:
         """
-        Check if this transition should be taken given the current context.
+        Check if this transition can be taken based on the context.
+
+        First checks if the transition rule passes, then if there is a validation
+        rule attached, checks that as well. Both checks must pass for the
+        transition to be taken.
 
         Args:
-            context: Current state machine context
+            context: Dictionary of values to check the rule and validation against
 
         Returns:
-            True if the transition should be taken, False otherwise
-            Returns False if the rule raises an exception
+            True if both the transition rule and validation pass (if present)
+            Returns False if the rule raises an exception or returns False
+
+        Raises:
+            ValidationFailedError: When the transition rule passes but validation fails
         """
         assert_type(self.rule, Callable[[dict[Any, Any]], bool])
         try:
-            return self.rule(context)
+            can_do_transition = self.rule(context)
         except Exception:
-            return False
+            can_do_transition = False
+
+        if self.validation:
+            try:
+                return (
+                    self.validation.check_condition(context)
+                    if can_do_transition
+                    else False
+                )
+            except ValidationFailedError as e:
+                raise ValidationFailedError(
+                    f"Transition {self.key} failed validation: {e.message}"
+                )
+        else:
+            return can_do_transition
 
 
 class Machine:
@@ -241,10 +289,12 @@ class Machine:
         Move to the next state based on the current context.
 
         Evaluates all transitions from the current state and takes the first valid one.
+        For a transition to be valid, both its rule must return True and its validation
+        (if present) must pass.
 
         Args:
             state: Current state
-            context: Context for evaluating transition rules
+            context: Context for evaluating transition rules and validations
 
         Returns:
             Next state after applying transitions
@@ -252,6 +302,7 @@ class Machine:
         Raises:
             MissingTransitionError: No valid transitions found
             DuplicateTransitionError: Multiple valid transitions possible
+            ValidationFailedError: When a transition's validation check fails
         """
         result = [
             state

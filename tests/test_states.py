@@ -1,6 +1,6 @@
 import pytest
 
-from genstates import Machine, State, Transition
+from genstates import Machine, State, Transition, Validation
 from genstates.exceptions import (
     DuplicateDestinationError,
     DuplicateTransitionError,
@@ -9,6 +9,7 @@ from genstates.exceptions import (
     MissingInitialStateError,
     MissingTransitionError,
     NonCallableActionError,
+    ValidationFailedError,
 )
 
 
@@ -70,6 +71,7 @@ class TestTransition:
             origin=states["origin"],
             destination=states["destination"],
             rule=always_true,
+            validation=None,
         )
 
         assert transition.key == "test_transition"
@@ -88,6 +90,71 @@ class TestTransition:
             origin=states["origin"],
             destination=states["destination"],
             rule=invalid_rule,
+            validation=None,
+        )
+
+        assert transition.check_condition({}) is False
+
+    def test_validation_pass(self, states):
+        """Test that validation passes when rule returns True."""
+
+        def always_true(context):
+            return True
+
+        validation = Validation(rule=always_true, message="Should not fail")
+        transition = Transition(
+            key="test_transition",
+            name="Test Transition",
+            origin=states["origin"],
+            destination=states["destination"],
+            rule=always_true,
+            validation=validation,
+        )
+
+        assert transition.check_condition({}) is True
+
+    def test_validation_fail(self, states):
+        """Test that validation failure raises ValidationFailedError."""
+
+        def always_true(context):
+            return True
+
+        def always_false(context):
+            return False
+
+        validation = Validation(rule=always_false, message="Validation failed")
+        transition = Transition(
+            key="test_transition",
+            name="Test Transition",
+            origin=states["origin"],
+            destination=states["destination"],
+            rule=always_true,
+            validation=validation,
+        )
+
+        with pytest.raises(
+            ValidationFailedError,
+            match="Transition test_transition failed validation: Validation failed",
+        ):
+            transition.check_condition({})
+
+    def test_rule_fail_skips_validation(self, states):
+        """Test that validation is skipped when rule returns False."""
+
+        def always_false(context):
+            return False
+
+        def validation_error(context):
+            raise Exception("Validation should not be called")
+
+        validation = Validation(rule=validation_error, message="Should not be called")
+        transition = Transition(
+            key="test_transition",
+            name="Test Transition",
+            origin=states["origin"],
+            destination=states["destination"],
+            rule=always_false,
+            validation=validation,
         )
 
         assert transition.check_condition({}) is False
@@ -524,3 +591,39 @@ class TestMachine:
 
         # All numbers are doubled since we transition to double state immediately
         assert module.processed == [8, 16, 24]
+
+    def test_validation_in_progress(self):
+        """Test that validation is checked during state machine progress."""
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "transitions": {
+                        "to_state2": {
+                            "name": "Go to State Two",
+                            "destination": "state2",
+                            "rule": "(boolean.tautology)",
+                            "validation": {
+                                "rule": '(condition.gt (basic.field "value") 0)',
+                                "message": "Value must be positive",
+                            },
+                        }
+                    },
+                },
+                "state2": {"name": "State Two"},
+            },
+        }
+
+        machine = Machine(schema)
+
+        # Test validation passes
+        next_state = machine.progress(machine.initial, {"value": 1})
+        assert next_state.key == "state2"
+
+        # Test validation fails
+        with pytest.raises(
+            ValidationFailedError,
+            match="Transition to_state2 failed validation: Value must be positive",
+        ):
+            machine.progress(machine.initial, {"value": -1})
