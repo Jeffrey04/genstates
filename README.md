@@ -17,12 +17,16 @@ A flexible state machine library for Python with support for state actions and d
    - [Transition Rules](#transition-rules)
 5. [Features](#features)
    - [State Actions](#state-actions)
+     - [Action Resolution](#action-resolution)
+     - [Action Types](#action-types)
+     - [Calling Actions](#calling-actions)
+   - [State Transitions and Rules](#state-transitions-and-rules)
+   - [Visualization](#visualization)
+6. [Advanced Usage](#advanced-usage)
    - [Sequence Processing](#sequence-processing)
      - [Map Action](#map-action)
      - [Reduce Action](#reduce-action)
      - [Foreach Action](#foreach-action)
-   - [Visualization](#visualization)
-6. [Advanced Usage](#advanced-usage)
    - [Custom Action Modules](#custom-action-modules)
    - [Complex State Transitions](#complex-state-transitions)
 7. [Contributing](#contributing)
@@ -243,7 +247,6 @@ Transitions use [genruler](https://github.com/Jeffrey04/genruler) expressions to
 - `(boolean.tautology)`: Always transition
 - `(condition.equal (basic.field "value") 10)`: Transition when value equals 10
 - `(condition.gt (basic.field "count") 5)`: Transition when count greater than 5
-
 ## Features
 
 ### State Actions
@@ -359,7 +362,72 @@ context = {'bonus': 10}
 result = bonus_state.do_action(3, 4, context=context)  # calls add_with_bonus(state, context, 3, 4)
 ```
 
+### State Transitions and Rules
+
+Transitions between states can be controlled using rules. Rules are boolean expressions that determine if a transition should occur:
+
+```python
+from genstates import Machine
+
+schema = {
+    "machine": {"initial_state": "start"},
+    "states": {
+        "start": {
+            "action": "process",
+            "transitions": {
+                "to_ten": {
+                    "destination": "ten",
+                    "rule": "(condition.equal (basic.field \"value\") 10)",  # True when value is 10
+                },
+                "to_other": {
+                    "destination": "other",
+                    "rule": "(boolean.not (condition.equal (basic.field \"value\") 10))",  # True when value is not 10
+                }
+            }
+        },
+        "ten": {
+            "action": "process"
+        },
+        "other": {
+            "action": "process"
+        }
+    }
+}
+
+machine = Machine(schema, None)  # No module needed for this example
+
+# Check if a transition is valid
+state = machine.states["start"]
+transition = state.transitions["to_ten"]
+is_valid = transition.check_condition({"value": 10})  # True
+is_valid = transition.check_condition({"value": 5})   # False
+
+# Progress to next state based on rules
+# Use machine.progress when the next state depends on which rule evaluates to true
+# given a context, rather than knowing the exact transition to take
+next_state = machine.progress(state, {"value": 10})  # Goes to "ten" state because value=10 rule matches
+next_state = machine.progress(state, {"value": 5})   # Goes to "other" state because value!=10 rule matches
+```
+
+### Visualization
+
+Export state machine as a Graphviz DOT string:
+```python
+dot_string = machine.graph()
+
+# Generate visualization using graphviz
+import graphviz
+graph = graphviz.Source(dot_string)
+graph.render("state_machine", format="png")
+```
+
+![Graphviz output](https://github.com/Jeffrey04/genstates/blob/main/states.png?raw=true)
+
+## Advanced Usage
+
 ### Sequence Processing
+
+Process items through state transitions and actions in different ways:
 
 #### Map Action
 
@@ -507,22 +575,6 @@ print(module.processed)  # [2, 4, 6]
 ```
 
 Unlike `map_action` which returns results, `foreach_action` is used when you want to execute state actions for their side effects (e.g., saving to a database, sending notifications) rather than collecting return values.
-
-### Visualization
-
-Export state machine as a Graphviz DOT string:
-```python
-dot_string = machine.graph()
-
-# Generate visualization using graphviz
-import graphviz
-graph = graphviz.Source(dot_string)
-graph.render("state_machine", format="png")
-```
-
-![Graphviz output](https://github.com/Jeffrey04/genstates/blob/main/states.png?raw=true)
-
-## Advanced Usage
 
 ### Custom Action Modules
 
