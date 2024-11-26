@@ -67,6 +67,10 @@ class DuplicateDestinationError(GenStatesException):
         )
 
 
+class MissingActionError(GenStatesException):
+    """Raised when attempting to execute a state's action when none is defined."""
+
+
 class ValidationFailedError(GenStatesException):
     """Raised when a validation condition fails."""
 

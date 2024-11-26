@@ -41,8 +41,12 @@ You can define your state machine either directly with a Python dictionary or us
 ### Using Python Dictionary
 
 ```python
-import operator
 from genstates import Machine
+
+class Calculator:
+    def mul_wrapper(self, state, x, y):
+        """Wrapper around multiplication that ignores state argument."""
+        return x * y
 
 # Define state machine configuration
 schema = {
@@ -55,7 +59,7 @@ schema = {
                     "destination": "double",
                     "rule": "(boolean.tautology)",
                     "validation": {
-                        "rule": "(condition.gt 0)",
+                        "rule": '(condition.gt (basic.field "value") 0)',
                         "message": "Number must be positive"
                     }
                 }
@@ -63,13 +67,13 @@ schema = {
         },
         "double": {
             "name": "Double State",
-            "action": "mul",  # operator.mul
+            "action": "mul_wrapper",  # Calculator.mul_wrapper
             "transitions": {
                 "to_triple": {
                     "destination": "triple",
                     "rule": "(boolean.tautology)",
                     "validation": {
-                        "rule": "(condition.gt 0)",
+                        "rule": '(condition.gt (basic.field "value") 0)',
                         "message": "Number must be positive"
                     }
                 }
@@ -77,13 +81,13 @@ schema = {
         },
         "triple": {
             "name": "Triple State",
-            "action": "mul",
+            "action": "mul_wrapper",
             "transitions": {
                 "to_triple": {
                     "destination": "triple",
                     "rule": "(boolean.tautology)",
                     "validation": {
-                        "rule": "(condition.gt 0)",
+                        "rule": '(condition.gt (basic.field "value") 0)',
                         "message": "Number must be positive"
                     }
                 }
@@ -92,8 +96,8 @@ schema = {
     }
 }
 
-# Create state machine with operator module for actions
-machine = Machine(schema, operator)
+# Create state machine with Calculator instance for actions
+machine = Machine(schema, Calculator())
 
 # Process sequence of numbers
 numbers = [2, 3, 4]
@@ -116,43 +120,47 @@ states:
         destination: double
         rule: "(boolean.tautology)"
         validation:
-          rule: "(condition.gt 0)"
+          rule: '(condition.gt (basic.field "value") 0)'
           message: "Number must be positive"
   double:
     name: Double State
-    action: mul
+    action: mul_wrapper
     transitions:
       to_triple:
         destination: triple
         rule: "(boolean.tautology)"
         validation:
-          rule: "(condition.gt 0)"
+          rule: '(condition.gt (basic.field "value") 0)'
           message: "Number must be positive"
   triple:
     name: Triple State
-    action: mul
+    action: mul_wrapper
     transitions:
       to_triple:
         destination: triple
         rule: "(boolean.tautology)"
         validation:
-          rule: "(condition.gt 0)"
+          rule: '(condition.gt (basic.field "value") 0)'
           message: "Number must be positive"
 ```
 
 Then load and use it in Python:
 
 ```python
-import operator
 import yaml  # requires pyyaml package
 from genstates import Machine
+
+class Calculator:
+    def mul_wrapper(self, state, x, y):
+        """Wrapper around multiplication that ignores state argument."""
+        return x * y
 
 # Load schema from YAML file
 with open('states.yaml') as file:
     schema = yaml.safe_load(file)
 
-# Create state machine with operator module for actions
-machine = Machine(schema, operator)
+# Create state machine with Calculator instance for actions
+machine = Machine(schema, Calculator())
 
 # Process sequence of numbers
 numbers = [2, 3, 4]
@@ -256,7 +264,8 @@ State actions are functions that process items in a state.
 2. Functions are looked up in the provided module:
    ```python
    class NumberProcessor:
-       def double(self, x):
+       def double(self, state, x):
+           # state is the current State object
            return x * 2
    
    machine = Machine(schema, NumberProcessor())
@@ -267,20 +276,25 @@ State actions are functions that process items in a state.
 1. Instance methods:
    ```python
    class Processor:
-       def double(self, x):
+       def double(self, state, x):
+           # state is the current State object
            return x * 2
    ```
 
-2. Module functions:
+2. Module functions (via wrapper class):
    ```python
-   import operator
-   machine = Machine(schema, operator)  # Use operator.add, mul, etc.
+   class OperatorWrapper:
+       def add_wrapper(self, state, x, y):
+           # state is ignored
+           return x + y
+   
+   machine = Machine(schema, OperatorWrapper())
    ```
 
 3. Lambda functions:
    ```python
    class Processor:
-       double = lambda self, x: x * 2
+       double = lambda self, state, x: x * 2  # state is current State object
    ```
 
 ### Sequence Processing
@@ -315,14 +329,12 @@ Key features:
 
 Example:
 ```python
-numbers = [1, 2, 3, 4, 5]
-result = machine.reduce_action(machine.initial, numbers, initial_value=0)
+numbers = [2, 3, 4]
+result = machine.reduce_action(machine.initial, numbers, initial_value=1)
 # Processing flow:
-# (0,1): start -> sum -> add(0,1) = 1
-# (1,2): sum -> multiply -> mul(1,2) = 2
-# (2,3): multiply -> multiply -> mul(2,3) = 6
-# (6,4): multiply -> multiply -> mul(6,4) = 24
-# (24,5): multiply -> multiply -> mul(24,5) = 120
+# (1,2): start -> sum -> add(1,2) = 3
+# (3,3): sum -> multiply -> mul(3,3) = 9
+# (9,4): multiply -> multiply -> mul(9,4) = 36
 ```
 
 #### Foreach Action
@@ -330,15 +342,19 @@ result = machine.reduce_action(machine.initial, numbers, initial_value=0)
 Process a sequence of items through the state machine, executing each state's action on the items as they flow through:
 
 ```python
-import operator
 from genstates import Machine
+
+class Calculator:
+    def mul_wrapper(self, state, x, y):
+        """Wrapper around multiplication that ignores state argument."""
+        return x * y
 
 schema = {
     "machine": {"initial_state": "start"},
     "states": {
         "start": {
             "name": "Start State",
-            "action": "add",  # operator.add
+            "action": "mul_wrapper",  # Calculator.mul_wrapper
             "transitions": {
                 "to_multiply": {
                     "destination": "multiply",
@@ -348,7 +364,7 @@ schema = {
         },
         "multiply": {
             "name": "Multiply State",
-            "action": "mul",  # operator.mul
+            "action": "mul_wrapper",
             "transitions": {
                 "to_multiply": {
                     "destination": "multiply",
@@ -359,7 +375,7 @@ schema = {
     }
 }
 
-machine = Machine(schema, operator)
+machine = Machine(schema, Calculator())
 
 # Process numbers through the state machine
 numbers = [4, 8, 12]

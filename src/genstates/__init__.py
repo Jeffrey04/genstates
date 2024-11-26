@@ -12,6 +12,7 @@ from genstates.exceptions import (
     DuplicateDestinationError,
     DuplicateTransitionError,
     InvalidInitialStateError,
+    MissingActionError,
     MissingDestinationStateError,
     MissingInitialStateError,
     MissingTransitionError,
@@ -38,17 +39,25 @@ class State[T]:
     name: str
     action: Callable[..., T] | None
 
-    def do_action(self, *arguments: Any) -> Any:
+    def do_action(self, *arguments: Any) -> T:
         """
-        Execute this state's action with the given arguments.
+        Execute the action associated with this state.
 
         Args:
             *arguments: Arguments to pass to the action
 
         Returns:
             Result of executing the action
+
+        Raises:
+            MissingActionError: If no action is defined for this state
         """
-        return self.action(*arguments)
+        if not self.action:
+            raise MissingActionError(f"No action defined for state {self.key}")
+
+        assert_type(self.action, Callable[..., T])
+
+        return self.action(self, *arguments)
 
 
 @dataclass(frozen=True)

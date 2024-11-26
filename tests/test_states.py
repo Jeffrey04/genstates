@@ -5,6 +5,7 @@ from genstates.exceptions import (
     DuplicateDestinationError,
     DuplicateTransitionError,
     InvalidInitialStateError,
+    MissingActionError,
     MissingDestinationStateError,
     MissingInitialStateError,
     MissingTransitionError,
@@ -45,12 +46,22 @@ class TestState:
         assert state.action is None
 
     def test_action(self):
-        def test_action(x, y):
+        def test_action(state, x, y):
+            assert isinstance(state, State)
+            assert state.key == "test"
             return x + y
 
         state = State(key="test", name="Test State", action=test_action)
         assert state.action is test_action
         assert state.do_action(1, 2) == 3
+
+    def test_missing_action(self):
+        """Test that executing a state with no action raises MissingActionError."""
+        state = State(key="test", name="Test State", action=None)
+        with pytest.raises(
+            MissingActionError, match="No action defined for state test"
+        ):
+            state.do_action()
 
 
 class TestTransition:
@@ -365,7 +376,9 @@ class TestMachine:
 
     def test_state_action_from_module(self):
         class TestModule:
-            def action1(self, x, y):
+            def action1(self, state, x, y):
+                assert isinstance(state, State)
+                assert state.key == "state1"
                 return x + y
 
             not_callable = 42
@@ -408,38 +421,45 @@ class TestMachine:
         """Test using operator.add as a state action."""
         import operator
 
+        class TestModule:
+            def add_wrapper(self, state, x, y):
+                """Wrapper around operator.add that ignores the state argument."""
+                return operator.add(x, y)
+
         schema = {
             "machine": {"initial_state": "state1"},
             "states": {
                 "state1": {
                     "name": "State One",
-                    "action": "add",
+                    "action": "add_wrapper",
                 },
             },
         }
 
-        machine = Machine(schema, operator)
-        state = machine.states["state1"]
+        module = TestModule()
+        machine = Machine(schema, module)
 
         # Test with integers
-        assert state.do_action(1, 2) == 3
+        assert machine.states["state1"].do_action(1, 2) == 3
 
         # Test with strings
-        assert state.do_action("hello ", "world") == "hello world"
+        assert machine.states["state1"].do_action("hello ", "world") == "hello world"
 
         # Test with lists
-        assert state.do_action([1, 2], [3, 4]) == [1, 2, 3, 4]
+        assert machine.states["state1"].do_action([1, 2], [3, 4]) == [1, 2, 3, 4]
 
     def test_map_action(self):
         """Test mapping items through state machine with actions."""
 
         class TestModule:
-            def double(self, x):
+            def double(self, state, x):
                 """Double the input value."""
+                assert isinstance(state, State)
                 return x * 2
 
-            def triple(self, x):
+            def triple(self, state, x):
                 """Triple the input value."""
+                assert isinstance(state, State)
                 return x * 3
 
         schema = {
@@ -490,6 +510,15 @@ class TestMachine:
         """Test reducing items through state machine with actions."""
         import operator
 
+        class TestModule:
+            def add_wrapper(self, state, x, y):
+                """Wrapper around operator.add that ignores the state argument."""
+                return operator.add(x, y)
+
+            def mul_wrapper(self, state, x, y):
+                """Wrapper around operator.mul that ignores the state argument."""
+                return operator.mul(x, y)
+
         schema = {
             "machine": {"initial_state": "start"},
             "states": {
@@ -504,8 +533,8 @@ class TestMachine:
                     },
                 },
                 "sum": {
-                    "name": "Start State",
-                    "action": "add",
+                    "name": "Sum State",
+                    "action": "add_wrapper",
                     "transitions": {
                         "to_multiply": {
                             "name": "Switch to Multiply",
@@ -516,7 +545,7 @@ class TestMachine:
                 },
                 "multiply": {
                     "name": "Multiply State",
-                    "action": "mul",
+                    "action": "mul_wrapper",
                     "transitions": {
                         "to_multiply": {
                             "name": "Switch to Multiply",
@@ -528,17 +557,11 @@ class TestMachine:
             },
         }
 
-        machine = Machine(schema, operator)
+        machine = Machine(schema, TestModule())
 
         # Test with initial value
-        numbers = [1, 2, 3, 4, 5]
-        result = machine.reduce_action(machine.initial, numbers, initial_value=0)
-        assert result == 120  # ((0+1) * 2 * 3 * 4 * 5 = 120)
-
-        # Test without initial value
-        numbers = [2, 3, 4, 5]
-        result = machine.reduce_action(machine.initial, numbers)
-        assert result == 100  # ((2+3) * 4 * 5 = 100)
+        assert machine.reduce_action(machine.initial, [1, 2, 3], initial_value=0) == 6
+        assert machine.reduce_action(machine.initial, [2, 3, 4], initial_value=1) == 36
 
     def test_foreach_action(self):
         """Test processing items through state machine with foreach_action."""
@@ -547,12 +570,14 @@ class TestMachine:
             def __init__(self):
                 self.processed = []
 
-            def collect(self, x):
+            def collect(self, state, x):
                 """Store the input value in processed list."""
+                assert isinstance(state, State)
                 self.processed.append(x)
 
-            def double(self, x):
+            def double(self, state, x):
                 """Double the input value and store it."""
+                assert isinstance(state, State)
                 self.processed.append(x * 2)
 
         schema = {
