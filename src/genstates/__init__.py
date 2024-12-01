@@ -406,33 +406,34 @@ class Machine:
             for trn_key, trn_definition in (
                 states[state_key].get("transitions", {}).items()
             ):
-                destination = trn_definition["destination"]
+                try:
+                    destination = trn_definition["destination"]
+                except KeyError as e:
+                    raise ValueError(
+                        f"Invalid transition definition for '{trn_key}' in state '{state_key}': {e}"
+                    ) from e
+
                 if destination in destinations:
                     raise DuplicateDestinationError(state_key, destination)
                 destinations.append(destination)
 
-                try:
-                    validation = None
-                    if valid_definition := trn_definition.get("validation"):
-                        validation = Validation(
-                            rule=genruler.parse(valid_definition["rule"]),
-                            message=valid_definition["message"],
-                        )
+                validation = None
+                if valid_definition := trn_definition.get("validation"):
+                    validation = Validation(
+                        rule=genruler.parse(valid_definition["rule"]),
+                        message=valid_definition["message"],
+                    )
 
-                    result_transitions[(state_key, trn_key)] = {
-                        "key": trn_key,
-                        "name": trn_definition.get("name", trn_key),
-                        "origin": result_states[state_key],
-                        "destination": trn_definition["destination"],
-                        "rule": genruler.parse(
-                            trn_definition.get("rule", "(boolean.tautology)")
-                        ),
-                        "validation": validation,
-                    }
-                except Exception as e:
-                    raise ValueError(
-                        f"Invalid transition definition for '{trn_key}' in state '{state_key}': {e}"
-                    ) from e
+                result_transitions[(state_key, trn_key)] = {
+                    "key": trn_key,
+                    "name": trn_definition.get("name", trn_key),
+                    "origin": result_states[state_key],
+                    "destination": trn_definition["destination"],
+                    "rule": genruler.parse(
+                        trn_definition.get("rule", "(boolean.tautology)")
+                    ),
+                    "validation": validation,
+                }
 
         try:
             result_transitions = {

@@ -14,6 +14,7 @@ genruler = "^0.1.0"
 [tool.poetry.group.dev.dependencies]
 ipdb = "^0.13.13"
 pytest = "^8.3.3"
+pytest-cov = "^6.0.0"
 
 [build-system]
 requires = ["poetry-core"]

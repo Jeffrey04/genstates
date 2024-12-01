@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pytest
 
 from genstates import Machine, State, Transition, Validation
@@ -165,10 +167,10 @@ class TestTransition:
         def always_false(context):
             return False
 
-        def validation_error(context):
-            raise Exception("Validation should not be called")
-
-        validation = Validation(rule=validation_error, message="Should not be called")
+        mocked_validation_error = Mock(lambda context: None)
+        validation = Validation(
+            rule=mocked_validation_error, message="Should not be called"
+        )
         transition = Transition(
             key="test_transition",
             name="Test Transition",
@@ -179,6 +181,7 @@ class TestTransition:
         )
 
         assert transition.check_condition({}) is False
+        assert not mocked_validation_error.called
 
 
 class TestMachine:
@@ -382,7 +385,9 @@ class TestMachine:
             Machine(schema)
         assert exc_info.value.state == "state1"
         assert exc_info.value.destination == "state2"
-        assert "State 'state1' has multiple transitions pointing to 'state2'" in str(exc_info.value)
+        assert "State 'state1' has multiple transitions pointing to 'state2'" in str(
+            exc_info.value
+        )
 
     def test_state_action_from_module(self):
         class TestModule:
@@ -505,11 +510,6 @@ class TestMachine:
         """Test mapping items through state machine with actions."""
 
         class TestModule:
-            def double(self, state, x):
-                """Double the input value."""
-                assert isinstance(state, State)
-                return x * 2
-
             def triple(self, state, x):
                 """Triple the input value."""
                 assert isinstance(state, State)
@@ -520,7 +520,6 @@ class TestMachine:
             "states": {
                 "start": {
                     "name": "Start State",
-                    "action": "double",
                     "transitions": {
                         "to_triple": {
                             "destination": "triple",
@@ -605,17 +604,15 @@ class TestMachine:
         assert machine.reduce_action(machine.initial, [1, 2, 3], initial_value=0) == 6
         assert machine.reduce_action(machine.initial, [2, 3, 4], initial_value=1) == 36
 
+        # Test without initial value
+        assert machine.reduce_action(machine.initial, [1, 2, 3]) == 9
+
     def test_foreach_action(self):
         """Test processing items through state machine with foreach_action."""
 
         class TestModule:
             def __init__(self):
                 self.processed = []
-
-            def collect(self, state, x):
-                """Store the input value in processed list."""
-                assert isinstance(state, State)
-                self.processed.append(x)
 
             def double(self, state, x):
                 """Double the input value and store it."""
@@ -627,7 +624,6 @@ class TestMachine:
             "states": {
                 "start": {
                     "name": "Start State",
-                    "action": "collect",
                     "transitions": {
                         "to_double": {
                             "destination": "double",
@@ -695,3 +691,53 @@ class TestMachine:
             match="Transition to_state2 failed validation: Value must be positive",
         ):
             machine.progress(machine.initial, {"value": -1})
+
+    def test_get_transition(self, simple_machine_schema):
+        """Test retrieving transitions from states."""
+        machine = Machine(simple_machine_schema)
+
+        # Test getting valid transition
+        state1 = machine.states["state1"]
+        transition = machine.get_transition(state1, "to_state2")
+        assert transition.key == "to_state2"
+        assert transition.origin is state1
+        assert transition.destination is machine.states["state2"]
+
+        # Test getting non-existent transition raises KeyError
+        with pytest.raises(KeyError):
+            machine.get_transition(state1, "non_existent")
+
+        # Test getting transition from state without transitions
+        state2 = machine.states["state2"]
+        with pytest.raises(KeyError):
+            machine.get_transition(state2, "any_transition")
+
+        # Test getting transition with non-existent state
+        non_existent_state = State(key="fake", name="Fake State", action=None)
+        with pytest.raises(KeyError):
+            machine.get_transition(non_existent_state, "to_state2")
+
+    def test_transition_without_destination(self):
+        """Test that a transition definition without a destination raises an error."""
+        schema = {
+            "machine": {"initial_state": "state1"},
+            "states": {
+                "state1": {
+                    "name": "State One",
+                    "action": None,
+                    "transitions": {
+                        "invalid_transition": {
+                            "name": "Invalid Transition",
+                            "rule": "(boolean.tautology)",
+                            # destination is missing
+                        }
+                    },
+                },
+            },
+        }
+
+        with pytest.raises(ValueError) as exc_info:
+            Machine(schema)
+
+        # Verify the error message mentions the missing 'destination' key
+        assert "destination" in str(exc_info.value)
