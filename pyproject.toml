@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "genstates"
-version = "0.2.0"
+version = "0.2.1"
 description = ""
 authors = ["Jeffrey04 <mycyberpet@yahoo.com>"]
 readme = "README.md"
