@@ -8,7 +8,7 @@ packages = [{include = "genstates", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-genruler = "^0.1.0"
+genruler = "^0.2.0"
 
 
 [tool.poetry.group.dev.dependencies]
