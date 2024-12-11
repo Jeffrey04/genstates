@@ -420,7 +420,7 @@ class Machine:
                 validation = None
                 if valid_definition := trn_definition.get("validation"):
                     validation = Validation(
-                        rule=genruler.parse(valid_definition["rule"]),
+                        rule=genruler.parse(valid_definition["rule"], module),
                         message=valid_definition["message"],
                     )
 
