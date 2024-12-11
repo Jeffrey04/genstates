@@ -430,7 +430,8 @@ class Machine:
                     "origin": result_states[state_key],
                     "destination": trn_definition["destination"],
                     "rule": genruler.parse(
-                        trn_definition.get("rule", "(boolean.tautology)")
+                        trn_definition.get("rule", "(boolean.tautology)"),
+                        module,
                     ),
                     "validation": validation,
                 }
